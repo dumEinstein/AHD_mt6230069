@@ -1,0 +1,86 @@
+You are an expert signal processing engineer. Improve the real-time (causal) filter in
+the program: run_signal_processing(noisy_signal, window_size=20) returns a dict whose
+"filtered_signal" is the filtered version of a noisy, non-stationary time series. The
+score rewards an output that has few slope reversals, follows the input with little lag
+and little error, reverses direction only where the clean signal does, and correlates
+with and removes noise relative to the clean signal.
+
+WHAT IS CALLED. For each signal the evaluator imports the program and calls
+run_signal_processing(noisy_signal=x, window_size=20) with keyword arguments: the program
+must define that function with those parameter names, and it must return a dict with the
+key "filtered_signal" holding a one-dimensional numeric sequence. In the initial program
+run_signal_processing lies outside the EVOLVE block and obtains that array by calling
+process_signal(input_signal, window_size, algorithm_type) with three positional
+arguments; if that wrapper is kept, process_signal must keep accepting them.
+
+THE OUTPUT CONTRACT. For an input x of length n the output has N = n - window_size + 1
+samples, where output[i] is the estimate for input time i + window_size - 1 (the last
+sample of the window x[i : i + window_size]); the scorer compares output[i] with the
+clean signal at that time. The filter is causal: output[i] may depend on
+x[0 .. i + window_size - 1] only. Equivalently, run on any prefix of x, the program must
+reproduce the leading samples of its output on the whole of x. The task is real-time
+filtering, so a filter that reads later samples is not a solution to it even where a
+scorer does not detect the look-ahead.
+
+A signal scores zero, with the message quoted, if:
+- the output is longer than N: the scorer then indexes past the end of the input
+  ("IndexError: index ... is out of bounds");
+- the result is not a dict with "filtered_signal" ("result must be a dict with
+  'filtered_signal'"), the output is empty or contains NaN or infinity
+  ("filtered_signal is empty or contains NaN/inf"), or fewer than two samples align
+  with the clean signal ("filtered_signal too short");
+- the output is constant, or its correlation with the clean signal is below 0.1: this
+  zero comes with no error message;
+- the call raises (type and message reported), or does not return within the time limit.
+
+HOW A SIGNAL IS SCORED.
+    score = 0.4 J + 0.2 / (1 + S/20) + 0.2 max(0, corr) + 0.1 noise_reduction + 0.1
+- S = number of sign changes between consecutive differences of the output (slope
+  reversals), counted over the whole output;
+- J = 1 / (1 + 0.3 min(S/50, 2) + 0.2 min(L_recent, 2) + 0.2 min(L_avg, 2)
+      + 0.3 min(R/25, 2));
+- L_recent = |output[-1] - x[window_size - 2 + N]| (the last input sample when the
+  output has exactly N values) and L_avg = mean over i of |output[i] - x[i + window_size - 1]|:
+  lag and tracking error are measured against the NOISY input at the aligned time, not
+  against the clean signal;
+- R = number of slope reversals of the output at positions where the aligned clean signal
+  has none (false reversals);
+- corr = Pearson correlation between the output and the aligned clean signal;
+- noise_reduction = max(0, 1 - var(output - clean) / var(x - clean)) over the aligned
+  range.
+The maximum is 1.0. The task score is the mean over signals.
+
+THE DATA. The shipped signals have 500 to 900 samples and five types (sinusoid plus
+trend, multi-frequency, chirp, step changes, random walk plus trend); the test signals
+are hidden, so nothing may be tuned to a particular length or signal.
+
+TIME. Each signal allows 10 seconds, measured on the call itself; the process evaluating
+it is killed about 15 seconds after it starts. If a larger figure appears elsewhere in
+your context as a time limit, it is the timeout of the whole evaluation, not of one call.
+Runtime below the limit is not scored.
+
+FORMULATION. Before choosing how to search, state the formulation precisely, and prefer
+one that an exact or gradient-based solver can handle: an objective defined by a worst
+case over many terms can be rewritten as one variable bounded by every term, and
+quantities the task leaves free should be decision variables rather than fixed choices.
+Use metaheuristics only for what such a formulation cannot capture.
+
+SOLVING. A smooth formulation with inequality constraints is best handled by a
+constrained local optimiser (for example scipy.optimize.minimize with method="SLSQP" and
+analytic gradients), started from many points -- random ones, structured ones, and small
+perturbations of the best solution found so far -- with one final high-precision solve of
+the best. If a constraint involves a sign or an absolute value, fix the sign at the
+current point and re-solve if it flips. A combinatorial formulation over a small set
+should be solved exactly rather than heuristically.
+
+ENVIRONMENT. Python 3.11 with numpy (2.x), scipy, pandas and networkx. Not installed:
+pywt (PyWavelets), PyEMD, sklearn, skimage, statsmodels, torch, numba, sympy --
+importing one raises ModuleNotFoundError and every signal scores zero. Anything not in
+those four packages has to be implemented in the program itself. The evaluator reports only
+combined_score, n_instances, n_failed and n_timeout, plus one feedback line per signal.
+
+ADMISSIBILITY BEFORE OPTIMISATION. A program that fails a check above scores zero on
+that signal however good its idea is; the feedback names the failed check. First make
+the program satisfy every check on every input it may receive; then improve the
+objective. Never raise an exception as a way of handling an input you find difficult --
+return a valid output instead.

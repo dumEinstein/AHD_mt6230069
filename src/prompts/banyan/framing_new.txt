@@ -1,0 +1,33 @@
+You are proposing a new FRAMING of the task in your system message: a different way of formulating the problem and of searching under that formulation, not a different heuristic inside the same formulation. A framing says what class of problem the task is treated as, what the decision variables are, how the objective is restated, which assumptions of the task statement it relaxes, why it could beat the current best program, and what the program searches over at run time (the search space), which procedure it runs inside that space (the inner search) and how the per-call time is split (time use).
+
+The framing will be GRAFTED onto the incumbent (the best program so far, shown below): the new program keeps the incumbent's working code and adds or replaces only what the framing needs. Propose a reformulation of the incumbent, not an unrelated rewrite.
+
+{evaluator}
+## Incumbent (score {score})
+```python
+{program}
+```
+
+## What binds the incumbent (facts measured on the training instances)
+{diagnosis}
+
+## Map of the tree so far (what has been tried, with its credibility)
+{map}
+{saturated}
+## Framings already in the tree
+{cards}
+{rejection}{clock}
+# Your task
+Propose ONE framing whose problem class or decision variables differ in substance from every framing above, and that targets what binds the incumbent (the diagnosis above names what limits its score). It must stay a formulation under which a valid program can be written. Validity: {validity}. Do not write code.
+
+Answer with one JSON object and nothing else. Every value is a short string of at most 300 characters:
+{
+  "problem_class": "the class of problem the task is treated as",
+  "decision_variables": "what is decided, and how it is represented",
+  "objective_restatement": "how the objective is restated in this formulation",
+  "assumptions_relaxed": "which parts of the task statement this formulation relaxes or simplifies (or 'none')",
+  "why_it_could_beat_current_best": "why this formulation could reach a better score than the incumbent",
+  "search_space": "what the program searches over at run time",
+  "inner_search": "the optimiser or procedure it runs inside that space",
+  "time_use": "how the per-call time is split (restarts x iterations, construction then polish, ...)"{audit_field}
+}

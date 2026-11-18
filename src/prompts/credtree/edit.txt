@@ -1,0 +1,37 @@
+Improve the program below with a targeted edit. It belongs to an attempt that carries out the plan under the framing given.
+
+## Framing
+{framing}
+
+## Attempt plan
+{plan}
+
+## Idea for this edit
+{idea}
+
+## Last outcomes of edits in this attempt
+{outcomes}
+
+## Program (score {score})
+```python
+{program}
+```
+
+## Evaluator feedback on this program
+{feedback}
+
+## What the evaluator has rejected so far in this run
+{notes}
+{rejected}
+# Your task
+Make the idea above work in this program, staying within the plan. Validity: {validity}. Keep the names {required} defined with the same signatures. Do not touch the lines outside the `# EVOLVE-BLOCK-START` ... `# EVOLVE-BLOCK-END` markers.
+
+Answer with SEARCH/REPLACE edits in exactly this format, copying the SEARCH lines verbatim from the program above, including indentation:
+
+<<<<<<< SEARCH
+exact lines copied from the program
+=======
+replacement lines
+>>>>>>> REPLACE
+
+You may give several blocks. Do not return the whole program.

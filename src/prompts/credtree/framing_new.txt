@@ -1,0 +1,22 @@
+You are proposing a new FRAMING of the task in your system message: a different way of formulating the problem, not a different heuristic inside the same formulation. A framing says what class of problem the task is treated as, what the decision variables are, how the objective is restated in that formulation, which assumptions of the task statement it relaxes, and why that formulation could beat the current best program.
+
+{evaluator}
+## Current best program (score {score})
+```python
+{program}
+```
+
+## Framings already in the tree
+{cards}
+{rejection}
+# Your task
+Propose ONE framing whose problem class or decision variables differ in substance from every framing above. It must stay a formulation under which a valid program can be written. Validity: {validity}. Do not write code.
+
+Answer with one JSON object and nothing else. Every value is a short string of at most 300 characters:
+{
+  "problem_class": "the class of problem the task is treated as",
+  "decision_variables": "what is decided, and how it is represented",
+  "objective_restatement": "how the objective is restated in this formulation",
+  "assumptions_relaxed": "which parts of the task statement this formulation relaxes or simplifies (or 'none')",
+  "why_it_could_beat_current_best": "why this formulation could reach a better score than the current best program"{audit_field}
+}

@@ -1,0 +1,78 @@
+You are an expert computational geometer. Improve heilbronn_triangle11() in the program:
+it returns 11 points inside the equilateral triangle with vertices (0, 0), (1, 0) and
+(0.5, sqrt(3)/2), chosen so that the smallest triangle formed by any three of the points
+has the largest possible area.
+
+SCORE. combined_score = (area of the smallest triangle over all 165 triples of points)
+/ (area of the big triangle, sqrt(3)/4) / 0.036529889880030156. A score of 1.0 equals
+the reference arrangement; higher is better. The score is a MINIMUM over triples, so it
+collapses to zero (up to floating-point rounding) whenever any three points are
+collinear or any two coincide -- and the evaluator reports no error in that case,
+because the arrangement is valid. Collinear
+triples arise from any three points on one edge of the triangle (two vertices plus a
+point between them count), from a vertex together with the centroid and the midpoint of
+the opposite edge (they lie on a median), and from any three points on one row, column
+or diagonal of a regular grid or lattice. One such triple makes the whole arrangement
+worth zero however well the other 164 triples are separated.
+
+STRUCTURE OF THE BEST KNOWN ARRANGEMENTS. At the best known arrangement for n = 11, more
+than a dozen of the 165 triangles have exactly the same, smallest area at the same time,
+and about half of the points lie on the edges of the big triangle (none at a corner).
+
+WHAT THE EVALUATOR CHECKS. heilbronn_triangle11() takes no arguments and must return the
+points as an array-like of shape (11, 2). The arrangement scores zero, with the message
+quoted, if:
+- np.asarray(points, dtype=float) does not have shape (11, 2) ("expected shape (11, 2)");
+- a point (x, y) violates any of y >= -1e-6, y <= sqrt(3) x + 1e-6 or
+  y <= sqrt(3) (1 - x) + 1e-6 ("point (x, y) is outside the triangle"). The region is
+  the triangle, not the unit square: (0.1, 0.4) is outside. A NaN coordinate fails this
+  test too;
+- the call raises (type and message reported), or does not return within the time limit.
+Points on the boundary are accepted (tolerance 1e-6).
+
+TIME. heilbronn_triangle11() may run for up to 360 seconds, measured on the call itself;
+module import time is not part of that measurement, but the process is killed about 370
+seconds after it starts. Runtime is not part of the score: a program that returns after
+300 seconds is scored exactly like one that returns after 0.3 seconds, and nothing is
+gained by finishing early -- whatever the program could still have improved in the
+remaining time is left on the table. Two cautions. First, the leaderboard re-runs the
+program on other hardware: keep a margin of at least a quarter of the limit, and let the
+result depend on the amount of work done (loop counts, convergence tests) rather
+than on elapsed time, or it will differ when re-run. Second, the run that generates and
+evaluates programs has a fixed wall clock of 10 hours for at most 500 evaluations, about
+70 seconds per evaluation including the time to write each program, so runtime is paid
+for in evaluations the run can no longer afford: tens of seconds per call is always
+affordable, the full allowance only for a few candidates. If a different figure appears
+elsewhere in your context as a time limit, it is the timeout of the whole evaluation, not
+of the call.
+
+REPRODUCIBILITY. The evaluator seeds Python's random and numpy's global random state
+with 0 before the call. A result that depends on an unseeded generator
+(numpy.random.default_rng() without a seed, time-based seeds) may score differently
+when the program is re-run.
+
+FORMULATION. Before choosing how to search, state the formulation precisely, and prefer
+one that an exact or gradient-based solver can handle: an objective defined by a worst
+case over many terms can be rewritten as one variable bounded by every term, and
+quantities the task leaves free should be decision variables rather than fixed choices.
+Use metaheuristics only for what such a formulation cannot capture.
+
+SOLVING. A smooth formulation with inequality constraints is best handled by a
+constrained local optimiser (for example scipy.optimize.minimize with method="SLSQP" and
+analytic gradients), started from many points -- random ones, structured ones, and small
+perturbations of the best solution found so far -- with one final high-precision solve of
+the best. If a constraint involves a sign or an absolute value, fix the sign at the
+current point and re-solve if it flips. A combinatorial formulation over a small set
+should be solved exactly rather than heuristically.
+
+ENVIRONMENT. Python 3.11 with numpy (2.x) and scipy; pandas and networkx are also
+installed. Not installed: sklearn, matplotlib, sympy, cvxpy, shapely, torch, numba --
+importing one raises ModuleNotFoundError and the program scores zero. The evaluator
+reports only combined_score, n_instances (1), n_failed and n_timeout, plus one feedback
+line ("heilbronn n=11: ok|error|timeout, score=..., (message)").
+
+ADMISSIBILITY BEFORE OPTIMISATION. A program that fails a check above scores zero
+however good its idea is; the feedback names the failed check, except for the silent
+zero of a degenerate triple. First make the program return 11 admissible,
+non-degenerate points on every run; then improve the objective. Never raise an exception
+as a way of handling a case you find difficult -- return a valid arrangement instead.

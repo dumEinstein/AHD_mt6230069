@@ -1,0 +1,87 @@
+You are an expert in cloud data-transfer optimisation. Improve search_algorithm(src,
+dsts, G, num_partitions) in the program. One object, split into num_partitions
+partitions, is broadcast from the source region src to every destination region in dsts
+over the directed graph G of cloud regions; the function returns the routes, and a
+simulator charges the resulting transfer. The objective is the lowest simulated cost.
+
+THE INPUT. G is a networkx DiGraph. Nodes are regions named "provider:region" with
+provider aws, gcp or azure. Each directed edge u -> v carries G[u][v]["cost"] (egress
+price, $/GB) and G[u][v]["throughput"] (Gbps). The data volume, the number of partitions
+and the per-provider ingress and egress limits come from the configuration being
+evaluated, not from the program. The program's own make_nx_graph reads profile CSV files
+relative to the program file; they are not present where the evaluator runs the program,
+so calling it raises. Use the G that is passed in.
+
+THE OUTPUT. The function returns a BroadCastTopology (the class in the program) whose
+.src is src, whose .dsts has the same members as dsts, and whose .paths maps every
+destination to a dict keyed by the partition index as a STRING ("0" .. "num_partitions-1"
+-- the class's set/append methods do this conversion), each holding one path: a non-empty
+list of hops [u, v, G[u][v]] that starts at src, is contiguous (each hop starts where the
+previous one ended) and ends at the destination. The evaluator calls
+.set_num_partitions(num_partitions) on the returned object, so the object must keep that
+method. The topology is written to JSON before simulation, so hop data must be
+JSON-serialisable: G[u][v] is; numpy scalars such as int64 or float32 are not.
+
+WHAT THE EVALUATOR CHECKS. A configuration scores zero, with the message quoted, if:
+- the returned object has no set_num_partitions method (AttributeError), the call raises
+  any exception, or it does not return within the time limit;
+- .src or .dsts differ from the inputs ("Source mismatch", "Destination mismatch");
+- a destination lacks a partition key, or a partition's path is None or empty ("Missing
+  partitions", "Empty partitions");
+- a hop has fewer than three elements, uses an edge u -> v that is not in G, does not
+  start where the previous hop ended, or the path does not end at its destination
+  ("Invalid paths").
+Otherwise the simulator prices the transfer and the configuration scores 1 / (1 + cost);
+the task score is the mean over configurations.
+
+HOW COST IS COMPUTED. (1) The hops of all paths form one topology graph; each edge
+records which partitions cross it. (2) Every edge starts with flow = its throughput.
+Then, node by node: if the flows into a node exceed its provider's ingress limit, each
+in-edge of that node is capped at limit / (number of in-edges at the node); likewise its
+out-edges against the egress limit. (3) A partition's transfer time to a destination is
+(data volume / num_partitions) divided by the smallest flow on its path; the transfer
+time is the maximum over all destinations and partitions. (4) cost = sum over topology
+edges of (number of distinct partitions crossing the edge) x (data volume /
+num_partitions) x the edge's cost, plus (number of regions in the topology) x 2 VMs x
+$0.54 per VM-hour x transfer time. So egress is charged per partition on every edge
+crossed, and a region that is only passed through pays egress on the way in and the way
+out. The VM term is small: on the evaluated configurations it is below 0.2% of the total
+cost.
+
+STRUCTURE OF THE BEST KNOWN TOPOLOGIES. In the best known topologies every partition
+uses the same edges, so the routes chosen for one partition decide the cost, and in most
+configurations some destinations receive the data from another destination rather than
+from the source. The evaluated configurations have 6 or 7 destinations.
+
+TIME. Each configuration allows 60 seconds, measured on the call itself; the process
+evaluating it is killed about 90 seconds after it starts, and the simulator runs inside
+that same window after your function returns. If a larger figure appears elsewhere in
+your context as a time limit, it is the timeout of the whole evaluation, not of one call.
+Runtime below the limit is not scored.
+
+FORMULATION. Before choosing how to search, state the formulation precisely, and prefer
+one that an exact or gradient-based solver can handle: an objective defined by a worst
+case over many terms can be rewritten as one variable bounded by every term, and
+quantities the task leaves free should be decision variables rather than fixed choices.
+Use metaheuristics only for what such a formulation cannot capture.
+
+SOLVING. A smooth formulation with inequality constraints is best handled by a
+constrained local optimiser (for example scipy.optimize.minimize with method="SLSQP" and
+analytic gradients), started from many points -- random ones, structured ones, and small
+perturbations of the best solution found so far -- with one final high-precision solve of
+the best. If a constraint involves a sign or an absolute value, fix the sign at the
+current point and re-solve if it flips. A combinatorial formulation over a small set
+should be solved exactly rather than heuristically.
+
+ENVIRONMENT. Python 3.11 with numpy (2.x), scipy, pandas and networkx (3.x). Not
+installed: pulp, ortools, cvxpy, sklearn, torch, numba -- importing one raises
+ModuleNotFoundError and every configuration scores zero. The evaluator reports only
+combined_score, n_instances, n_failed and n_timeout, plus one feedback line per
+configuration. Held-out configurations use the same graph; sources, destination sets
+and settings may differ, so nothing may be tuned to the training configurations.
+
+ADMISSIBILITY BEFORE OPTIMISATION. A program that fails a check above scores zero on
+that configuration however good its idea is; the feedback names the failed check. First
+make the program satisfy every check on every input it may receive; then improve the
+objective. Never raise an exception as a way of handling an input you find difficult --
+return a valid topology instead.

@@ -1,0 +1,42 @@
+Improve the program below by carrying out a change to its logic. It belongs to an attempt that carries out the plan under the framing given.
+
+## Framing
+{framing}
+
+## Attempt plan
+{plan}
+
+## The change to make
+Cause: {cause}
+Change: {idea}
+Expected effect: {predict}
+
+## Diagnosis of this program (facts measured on the training instances)
+{diagnosis}
+
+## Lessons learned so far under this framing
+{lessons}
+
+## Last outcomes of edits in this attempt
+{outcomes}
+
+## Program (score {score})
+```python
+{program}
+```
+
+## What the evaluator has rejected so far in this run
+{notes}
+{rejected}
+# Your task
+Implement the change above in this program so that it acts on the cause named. Every function you call must be defined in the program or imported. Validity: {validity}. Keep the names {required} defined with the same signatures. Do not touch the lines outside the `# EVOLVE-BLOCK-START` ... `# EVOLVE-BLOCK-END` markers.
+
+Answer with SEARCH/REPLACE edits in exactly this format, copying the SEARCH lines verbatim from the program above, including indentation:
+
+<<<<<<< SEARCH
+exact lines copied from the program
+=======
+replacement lines
+>>>>>>> REPLACE
+
+You may give several blocks. Do not return the whole program.

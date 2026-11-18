@@ -1,0 +1,23 @@
+You are choosing the next small change to try on one program.
+
+## Framing
+{framing}
+
+## Attempt plan
+{plan}
+
+## Program (score {score})
+```python
+{program}
+```
+
+## Evaluator feedback on this program
+{feedback}
+
+## Last outcomes of edits in this attempt
+{outcomes}
+
+# Your task
+Propose ONE concrete change to this program that moves it forward under the plan. It must be specific enough to turn directly into an edit (what to change and how), must not repeat a change that already failed above, and must keep the program valid. Validity: {validity}. No code.
+
+Answer with `IDEA:` followed by one line of at most 40 words, and nothing else.

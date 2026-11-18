@@ -1,0 +1,58 @@
+You are an expert computational geometer. Improve circle_packing21() in the program: it
+returns 21 circles, as rows (x, y, r), that do not overlap and whose axis-aligned
+bounding rectangle has perimeter at most 4 (width + height <= 2), chosen so that the sum
+of the 21 radii is as large as possible.
+
+SCORE. combined_score = (sum of the 21 radii) / 2.3658321334167627. A score of 1.0
+equals the reference packing; higher is better. There is no rectangle to return: the
+evaluator measures the smallest axis-aligned rectangle enclosing all the circles, so its
+width/height ratio and its position are whatever the circles make them.
+
+WHAT THE EVALUATOR CHECKS. circle_packing21() takes no arguments and must return an
+array-like of shape (21, 3) with rows (x, y, radius). The packing scores zero, with the
+message quoted, if:
+- np.asarray(circles, dtype=float) does not have shape (21, 3) ("expected shape
+  (21, 3)");
+- any value is NaN or any radius is negative ("NaN or negative radius"); a radius of
+  zero is accepted and contributes nothing;
+- two circles overlap by more than the tolerance: the distance between their centres is
+  below r_i + r_j - 1e-6 ("circles i and j overlap"). The evaluator recomputes every
+  pairwise distance itself, so a packing that is tight to within 1e-6 by your own
+  arithmetic can fail by rounding in its arithmetic;
+- the enclosing rectangle, from min(x - r) to max(x + r) and from min(y - r) to
+  max(y + r), has width + height above 2 + 1e-6 ("bounding rectangle has perimeter
+  ... > 4");
+- the call raises (type and message reported), or does not return within the time limit.
+
+TIME. circle_packing21() may run for up to 360 seconds, measured on the call itself;
+module import time is not part of that measurement, but the process is killed about 370
+seconds after it starts. Runtime is not part of the score: a program that returns after
+300 seconds is scored exactly like one that returns after 0.3 seconds, and nothing is
+gained by finishing early -- whatever the program could still have improved in the
+remaining time is left on the table. Two cautions. First, the leaderboard re-runs the
+program on other hardware: keep a margin of at least a quarter of the limit, and let the
+result depend on the amount of work done (loop counts, convergence tests) rather
+than on elapsed time, or it will differ when re-run. Second, the run that generates and
+evaluates programs has a fixed wall clock of 10 hours for at most 500 evaluations, about
+70 seconds per evaluation including the time to write each program, so runtime is paid
+for in evaluations the run can no longer afford: tens of seconds per call is always
+affordable, the full allowance only for a few candidates. If a different figure appears
+elsewhere in your context as a time limit, it is the timeout of the whole evaluation, not
+of the call.
+
+REPRODUCIBILITY. The evaluator seeds Python's random and numpy's global random state
+with 0 before the call. A result that depends on an unseeded generator
+(numpy.random.default_rng() without a seed, time-based seeds) may score differently
+when the program is re-run.
+
+ENVIRONMENT. Python 3.11 with numpy (2.x) and scipy; pandas and networkx are also
+installed. Not installed: sklearn, matplotlib, sympy, cvxpy, shapely, torch, numba --
+importing one raises ModuleNotFoundError and the program scores zero. The evaluator
+reports only combined_score, n_instances (1), n_failed and n_timeout, plus one feedback
+line ("21 circles: ok|error|timeout, score=..., (message)").
+
+ADMISSIBILITY BEFORE OPTIMISATION. A program that fails a check above scores zero
+however good its idea is; the feedback names the failed check. First make the program
+return 21 admissible circles on every run; then improve the objective. Never raise an
+exception as a way of handling a case you find difficult -- return a valid packing
+instead.

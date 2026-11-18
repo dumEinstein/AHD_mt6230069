@@ -1,0 +1,31 @@
+Change the program below so that it carries out the attempt plan under the framing given. Graft the plan onto this program: it is the best program found so far, so keep everything that already works and change only what the plan needs.
+
+## Framing
+{framing}
+
+## Attempt plan
+{plan}
+
+## Program to change (score {score})
+```python
+{program}
+```
+
+## Interface
+The program must keep defining these names, which the evaluator or the fixed code outside the EVOLVE block uses: {required}. Keep their signatures exactly. Do not touch the lines outside `# EVOLVE-BLOCK-START` ... `# EVOLVE-BLOCK-END`.
+
+## What the evaluator has rejected so far in this run
+{notes}
+{rejected}
+# Your task
+Implement the plan as SEARCH/REPLACE edits on the program above. The edits may be large (a new function, a replaced core loop), but every part of the program the plan does not change stays as it is. Validity: {validity}.
+
+Answer with SEARCH/REPLACE edits in exactly this format, copying the SEARCH lines verbatim from the program above, including indentation:
+
+<<<<<<< SEARCH
+exact lines copied from the program
+=======
+replacement lines
+>>>>>>> REPLACE
+
+You may give several blocks. Only if the plan truly cannot be expressed as edits, return instead the complete program, including the EVOLVE-BLOCK markers, in a single ```python fenced block and nothing after it.

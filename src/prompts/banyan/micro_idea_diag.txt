@@ -1,0 +1,35 @@
+You are choosing the next change to try on one program. Reason about the LOGIC of the program: what in its algorithm produces the numbers in the diagnosis, and which rule of the algorithm to change so that the binding part of the solution improves.
+
+## Framing
+{framing}
+
+## Attempt plan
+{plan}
+
+## Program (score {score})
+```python
+{program}
+```
+
+## Diagnosis of this program (facts measured on the training instances)
+{diagnosis}
+{headroom}
+## Map of the tree so far (credibility of every node: how likely an evaluation there is to raise the incumbent)
+{map}
+{inspiration}
+## Lessons learned so far under this framing (checked against the evaluator)
+{lessons}
+
+## Last outcomes of edits in this attempt
+{outcomes}
+
+# Your task
+1. From the diagnosis, say what limits the score and which part of the program's logic causes it.
+2. Propose ONE change to that logic (a rule, an order, a criterion, a representation -- not a constant tweak unless the diagnosis or the headroom shows it binds). Do not repeat a change that a lesson or an outcome above shows did not work. If the headroom above allows a compute move, the change may instead spend more of the deadline on the inner search or re-split how the time is used.
+3. Predict what the change will do to a specific number in the diagnosis.
+The change must keep the program valid. Validity: {validity}. No code.
+
+Answer with exactly these three lines and nothing else, each at most 40 words:
+CAUSE: <what limits the score and the logic in the program that causes it>
+CHANGE: <the change to the logic>
+PREDICT: <which diagnosed number changes, in which direction, roughly by how much>

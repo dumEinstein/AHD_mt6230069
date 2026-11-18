@@ -1,0 +1,19 @@
+A change was made to a program to test a hypothesis about the task in your system message. Judge whether the hypothesis held, and state what was learned about the PROBLEM (not about the code) in one line.
+
+## Hypothesis
+Cause: {cause}
+Change: {idea}
+Prediction: {predict}
+
+## Before the change (score {parent_score})
+{parent_diagnosis}
+
+## After the change (score {child_score})
+{child_diagnosis}
+
+# Your task
+Compare the prediction with what happened. CONFIRMED: the predicted number moved as predicted. REFUTED: it did not move, or moved the other way, or the program broke for a reason the change caused. UNCLEAR: the evidence above cannot tell.
+
+Answer with exactly two lines and nothing else:
+VERDICT: CONFIRMED | REFUTED | UNCLEAR
+LESSON: <at most 30 words: what this shows about what limits the score and what does or does not help>

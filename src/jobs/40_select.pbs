@@ -1,0 +1,36 @@
+#!/bin/bash
+#PBS -N col870_select
+#PBS -P neuro.symbolic.spons
+#PBS -q standard
+#PBS -l select=1:ncpus=8
+#PBS -l walltime=01:00:00
+#PBS -j oe
+#PBS -o jobs/logs/40_select.out
+#
+# Validation selection on its own, for a run whose search finished but whose
+# stage 4 did not. No GPU: the generator is not involved in selection.
+#
+#   qsub -v TASK=heilbronn_triangle,RUN_DIR=runs/.../evox_seed0_...,MODE=final jobs/40_select.pbs
+#
+# MODE picks the evaluator kit exactly as in 20_run.pbs; it must match the kit the
+# run searched with (KIT.txt in the run directory).
+set -euo pipefail
+TASK="${TASK:?set TASK=...}"
+RUN_DIR="${RUN_DIR:?set RUN_DIR=...}"
+KERBEROS="${KERBEROS:-mt6230069}"
+cd "$PBS_O_WORKDIR"
+MODE="${MODE:-hacked}"
+case "$MODE" in
+  hacked)  KIT="$PBS_O_WORKDIR/extracted/col8385_project" ;;
+  patched) KIT="$PBS_O_WORKDIR/extracted/col8385_project_patched" ;;
+  final)   KIT="$PBS_O_WORKDIR/extracted/col8385_project_final" ;;
+  *) echo "MODE must be hacked, patched or final, got $MODE"; exit 1 ;;
+esac
+SKY="$HOME/flash/col8385/skydiscover"
+export PYTHONUNBUFFERED=1 EVAL_PARALLEL=8
+unset http_proxy https_proxy ftp_proxy HTTP_PROXY HTTPS_PROXY
+case $TASK in heilbronn_triangle|circle_packing_rect) TOP=3 ;; *) TOP=20 ;; esac
+echo "=== $PBS_JOBID selection for $TASK, top $TOP, mode $MODE  $(date)"
+"$SKY/.venv/bin/python" "$PBS_O_WORKDIR/scripts/select_by_val.py" \
+  "$PBS_O_WORKDIR/$RUN_DIR" "$KIT/problems/$TASK" --top "$TOP" --name "$KERBEROS"
+echo "=== done $(date)"

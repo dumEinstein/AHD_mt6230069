@@ -1,0 +1,49 @@
+Write a DIAGNOSER for the task in your system message: a Python module that runs a candidate program on the training instances exactly as the evaluator does and explains, with numbers, what limits its score on each instance. It is used to tell the person improving the program which part of the solution's LOGIC is responsible for the score, so that they can make a logical improvement rather than a blind code change.
+
+## Evaluator source and the modules it loads
+{sources}
+
+## An example of the programs it will be run on
+```python
+{program}
+```
+
+## What your module gets
+- `import evaluator as E` -- the evaluator above, already imported, with everything it defines at top level and nothing else (see the list of its names under the source: a module it loads is reachable only under the name it is assigned to there). Enumerate the instances EXACTLY as `E.evaluate(program_path, split="train")` does -- same instances, same order, same labels; if it runs a single instance without loading any data, so do you. Only the training split may be loaded; any other split is refused.
+- `import diagkit` -- `diagkit.run_each(fn, args_list)` calls `fn(*args)` for every tuple `args` in `args_list` (the tuple is UNPACKED into positional arguments), each in its own process with the evaluator's time limit, and returns, in order, `("ok", value)`, `("error", "Type: message")` or `("timeout", None)`, where `value` is whatever `fn` returned. Define `fn` at the top level of your module. Use it to run the program, so that a crashing or hanging program cannot take the diagnoser down. The pattern:
+```python
+def run_one(program_path, instance):          # one positional parameter per element of each args tuple
+    ...                                       # run the program on this instance as the evaluator does
+    return {"score": ..., "report": ...}      # raise on a failed check, as the evaluator does
+
+def diagnose(program_path):
+    instances = ...                           # exactly the instances E.evaluate runs, in its order
+    results = diagkit.run_each(run_one, [(program_path, inst) for inst in instances])
+    ...                                       # status "ok" -> value; "error"/"timeout" -> score 0, report why
+```
+
+## What your module must define
+```python
+def diagnose(program_path: str) -> list:
+    """One dict per training instance, in the evaluator's order:
+       {"label": str, "score": float, "report": str, "checks": [check, ...], "failed_check": str or None}
+       check = {"name": str, "value": float, "limit": float, "sense": "<=" or ">="}"""
+```
+- `label`: the label the evaluator's feedback uses for that instance.
+- `score`: EXACTLY the score the evaluator gives that instance. Call the program the way the evaluator does and compute the score with the evaluator's own functions wherever they exist; do not re-implement them. An instance the evaluator would score 0 (exception, timeout, failed check) gets score 0. Your scores are checked against the evaluator's, instance by instance, and a diagnoser whose scores differ is discarded.
+- `report`: at most 400 characters of FACTS with numbers, no advice:
+  * the element that determines the score on this instance (the constraint, item, pair, group or term the score is computed from), with its value. Identify elements by their index in the PROGRAM'S OUTPUT (e.g. "points 3, 8, 9", "circles 4 and 11", "GPU 5"), never by their position in an enumeration of combinations;
+  * how many elements are within 1% of the binding value, and the next few with their margin, so it is clear whether one element or many bind;
+  * when the score combines several terms, each term's value, its weight and how much score it loses against its best possible value;
+  * for a score-0 instance: which check failed and on what.
+  Every number in the report must be one the evaluator computes or checks, or a direct count over the program's output. Do NOT state slack or margins to limits in the report: those go in `checks`.
+- `checks`: one entry for every comparison of a number against a fixed limit that the evaluator performs to accept or reject an output (it raises, or scores 0, when the comparison fails), computed EXACTLY as the evaluator computes the compared quantity: `value` is that quantity, `limit` the number it is compared with, `sense` the direction that passes (`"<="` when value must not exceed limit). When the evaluator applies one comparison to many elements (every pair, every item, every point), give only the tightest one -- the element closest to failing -- and say which in `name` (e.g. "pair 4-11 distance minus radii"). Do not invent limits the evaluator does not have; a check whose quantity you cannot compute is left out. Use `[]` when the program produced no output (it crashed or timed out) or the evaluator performs no such comparison. - `failed_check`: when the evaluator rejects the output because one of these comparisons fails, the `name` of that check; otherwise `None` (accepted, or rejected for a reason that is not a comparison: a missing or duplicated item, a wrong type, a crash, a timeout).
+These are verified automatically: on every instance the evaluator accepted (score above 0), every check must pass; on an instance it rejected or scored 0, the check you name in `failed_check` must fail. A check that only restates a property every output has (e.g. "area >= 0") tells nothing: include only the evaluator's own comparisons.
+
+## Rules
+- Training instances only. Do not name any other split.
+- Deterministic: no randomness of your own; do not change the program or the instances.
+- numpy, scipy and the standard library are available; nothing else may be imported.
+- Keep the module under 200 lines.
+{failure}
+Answer with the complete module in a single ```python fenced block and nothing after it.

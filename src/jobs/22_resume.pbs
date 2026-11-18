@@ -1,0 +1,114 @@
+#!/bin/bash
+#PBS -N col870_resume
+#PBS -P neuro.symbolic.spons
+#PBS -q standard
+#PBS -l select=1:ncpus=16:ngpus=1
+#PBS -l walltime=07:30:00
+#PBS -j oe
+#PBS -o jobs/logs/22_resume.out
+#
+# Resume a BANYAN run that died (e.g. the 15 Nov /home outage), in its own run directory:
+#
+#   qsub -v TASK=signal_processing,SEED=0,MODE=final,RUN_DIR=$PWD/runs_final/v7/banyan/signal_processing/banyan_seed0_... jobs/22_resume.pbs
+#
+# The runner reloads the database from the last checkpoint (--checkpoint); BANYAN_RESUME=1 makes the controller
+# rebuild its tree and state from the run's logs (scripts/banyan.py, _resume). The budget carries over:
+#   evaluations  EVAL_DONE = the evaluations already spent: the larger of banyan_tree.json "E" and the last "E=" in
+#                run.log (a run that lost its disk kept evaluating with nothing saved), so the 500 cap is the run's total;
+#   wall clock   LIMIT stays the task's (so the deadline D and every T-relative share are unchanged) and the process
+#                is stopped after the time the run had left: T minus the search time it had used when it died.
+# Stages 2-4 of jobs/20_run.pbs, unchanged otherwise (the reference scores already exist).
+set -euo pipefail
+TASK="${TASK:?set TASK}"
+SEED="${SEED:-0}"
+RUN_DIR="${RUN_DIR:?set RUN_DIR to the run directory to resume}"
+KERBEROS="${KERBEROS:-mt6230069}"
+echo "=== $PBS_JOBID on $(hostname)  $(date)  RESUME task=$TASK seed=$SEED run=$RUN_DIR"
+nvidia-smi -L || true
+cd "$PBS_O_WORKDIR"
+PROJ="$PBS_O_WORKDIR"
+MODE="${MODE:-final}"
+case "$MODE" in
+  hacked)  KIT="$PROJ/extracted/col8385_project" ;;
+  patched) KIT="$PROJ/extracted/col8385_project_patched" ;;
+  final)   KIT="$PROJ/extracted/col8385_project_final" ;;
+  *) echo "MODE must be hacked, patched or final, got $MODE"; exit 1 ;;
+esac
+grep -q "$(basename "$KIT")$" "$RUN_DIR/KIT.txt" || { echo "run was scored by $(cat "$RUN_DIR/KIT.txt"), not $KIT"; exit 1; }
+SKY="$HOME/flash/col8385/skydiscover"
+VLLM_VENV="$HOME/flash/col8385/envs/vllm"
+export HF_HOME="$HOME/flash/col8385/hf_home" HF_HUB_OFFLINE=1
+export PYTHONUNBUFFERED=1 TOKENIZERS_PARALLELISM=false
+export EVAL_PARALLEL=8
+export VLLM_USE_FLASHINFER_SAMPLER=0 TORCHINDUCTOR_COMPILE_THREADS=1
+export VLLM_NO_USAGE_STATS=1 DO_NOT_TRACK=1
+unset http_proxy https_proxy ftp_proxy HTTP_PROXY HTTPS_PROXY
+case $TASK in heilbronn_triangle|circle_packing_rect) LIMIT=10h ;; *) LIMIT=5h ;; esac
+
+# What the run had spent: evaluations, search seconds, and the checkpoint to reload.
+read -r EVAL_DONE REMAIN CKPT < <("$SKY/.venv/bin/python" - "$RUN_DIR" "$LIMIT" <<'PY'
+import glob, json, re, sys
+from datetime import datetime
+run, lim = sys.argv[1], sys.argv[2]
+T = float(lim[:-1]) * {"h": 3600, "m": 60, "s": 1}[lim[-1]]
+dump = json.load(open(run + "/banyan_tree.json"))
+rows = [json.loads(l) for l in open(run + "/tree_stats.jsonl") if l.strip()]
+start = next(json.loads(l) for l in open(run + "/tree_events.jsonl") if '"start"' in l)
+used = (datetime.fromisoformat(rows[-1]["timestamp"]) - datetime.fromisoformat(start["timestamp"])).total_seconds()
+ck = sorted(glob.glob(run + "/checkpoints/checkpoint_*"), key=lambda c: int(c.rsplit("_", 1)[1]))[-1]
+# A run that lost its disk can go on evaluating with nothing saved; those evaluations are still spent.
+logged = [int(m) for m in re.findall(r"banyan: E=(\d+) ", open(run + "/run.log", errors="replace").read())]
+print(max([dump["E"]] + logged), int(T - used), ck)
+PY
+)
+echo "evaluations already spent: $EVAL_DONE; search time left: ${REMAIN}s of $LIMIT; checkpoint: $CKPT"
+[ "$EVAL_DONE" -lt 500 ] && [ "$REMAIN" -gt 300 ] || { echo "nothing left to resume"; exit 1; }
+
+echo "=== [2/4] vLLM  $(date)"
+PORT=$(python3 - "$PBS_JOBID" <<'PORTPY'
+import socket, sys
+base = 8000 + int(sys.argv[1].split(".")[0]) % 100
+for p in range(base, base + 200):
+    with socket.socket() as s:
+        try:
+            s.bind(("127.0.0.1", p))
+        except OSError:
+            continue
+    print(p); break
+else:
+    print(8000)
+PORTPY
+)
+export PORT
+export API="http://localhost:${PORT}/v1"
+LOG="$PROJ/jobs/logs/vllm_${TASK}_seed${SEED}_resume.log"
+source "$VLLM_VENV/bin/activate"
+bash "$PROJ/scripts/serve_qwen.sh" > "$LOG" 2>&1 &
+VLLM_PID=$!
+trap 'kill $VLLM_PID 2>/dev/null || true' EXIT
+for i in $(seq 1 180); do
+  curl -sf "$API/models" >/dev/null && break
+  kill -0 $VLLM_PID 2>/dev/null || { echo "vLLM died during startup"; tail -60 "$LOG"; exit 1; }
+  sleep 10
+done
+curl -sf "$API/models" || { echo "vLLM did not come up in 30 min"; tail -60 "$LOG"; exit 1; }
+echo "vLLM up after $((i*10))s"
+deactivate
+
+echo "=== [3/4] search: banyan RESUMED, seed $SEED  $(date)"
+P=$KIT/problems/$TASK
+START=$(date +%s)
+cd "$SKY"
+echo "=== resumed $(date) from $CKPT: EVAL_DONE=$EVAL_DONE, ${REMAIN}s left" >> "$RUN_DIR/run.log"
+OPENAI_API_KEY=dummy BANYAN=1 BANYAN_RESUME=1 EVAL_CAP=500 EVAL_DONE="$EVAL_DONE" LIMIT="$LIMIT" \
+  timeout --signal=INT "$REMAIN" "$SKY/.venv/bin/python" "$PROJ/scripts/run_capped.py" optimize "$P/initial_program.py" \
+  "$P/evaluator.py" -c "$RUN_DIR/config.yaml" -i 6000 -o "$RUN_DIR" --api-base "$API" --checkpoint "$CKPT" 2>&1 \
+  | tee -a "$RUN_DIR/run.log" || true
+echo "wall_clock_seconds_resumed=$(( $(date +%s) - START ))" | tee -a "$RUN_DIR/run.log"
+cd "$PROJ"
+
+echo "=== [4/4] validation selection  $(date)"
+kill $VLLM_PID 2>/dev/null || true
+case $TASK in heilbronn_triangle|circle_packing_rect) TOP=3 ;; *) TOP=20 ;; esac
+"$SKY/.venv/bin/python" "$PROJ/scripts/select_by_val.py" "$RUN_DIR" "$KIT/problems/$TASK" --top "$TOP" --name "$KERBEROS"
+echo "=== done $(date)  run_dir=$RUN_DIR"

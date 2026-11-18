@@ -1,0 +1,17 @@
+Under the framing below, write the PLAN for one attempt: one concrete algorithm that carries out the framing.
+
+## Framing
+{framing}
+
+## Current best program (score {score})
+```python
+{program}
+```
+
+## Plans already tried under this framing, with the best score each reached
+{siblings}
+
+# Your task
+Write ONE plan as a single paragraph of at most 150 words. Name the concrete algorithm, its main steps, and how the program stays valid by construction. Validity: {validity}. If plans are listed above, the new plan must differ from them in the algorithm itself, not in details. Do not write code.
+
+Answer with `PLAN:` followed by the paragraph, and nothing else.

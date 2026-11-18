@@ -1,0 +1,21 @@
+Rewrite the program below so that it implements the attempt plan under the framing given. The result is a complete new program; a full rewrite is allowed.
+
+## Framing
+{framing}
+
+## Attempt plan
+{plan}
+
+## Program to rewrite (score {score})
+```python
+{program}
+```
+
+## Interface
+The program must keep defining these names, which the evaluator or the fixed code outside the EVOLVE block uses: {required}. Keep their signatures exactly. Everything outside `# EVOLVE-BLOCK-START` ... `# EVOLVE-BLOCK-END` is fixed and will be kept exactly as shown; write the program between the markers.
+
+## What the evaluator has rejected so far in this run
+{notes}
+{rejected}
+# Your task
+Implement the plan faithfully and completely. Keep what already works in the program wherever the plan allows it, and replace the rest. Validity: {validity}. Return the complete program, including the EVOLVE-BLOCK markers, in a single ```python fenced block and nothing after it.

@@ -1,0 +1,29 @@
+The program below was written to carry out the plan under the framing given, but the evaluator rejected it or scored it zero. Repair it without abandoning the plan.
+
+## Framing
+{framing}
+
+## Attempt plan
+{plan}
+
+## Program
+```python
+{program}
+```
+
+## Evaluator feedback on this program
+{feedback}
+
+## What the evaluator has rejected so far in this run
+{notes}
+{rejected}
+# Your task
+Find the cause of the failure in the feedback and fix it so the failing constraint holds by construction, on every input. Keep the plan. Answer either with SEARCH/REPLACE edits in this format, copying the SEARCH lines verbatim:
+
+<<<<<<< SEARCH
+exact lines copied from the program
+=======
+replacement lines
+>>>>>>> REPLACE
+
+or with the complete corrected program in a single ```python fenced block.

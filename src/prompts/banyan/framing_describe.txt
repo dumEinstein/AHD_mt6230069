@@ -1,0 +1,21 @@
+Below is the program that currently solves the task in your system message.
+
+## Program (score {score})
+```python
+{program}
+```
+{evaluator}
+{clock}
+Write a FRAMING CARD that describes how this program formulates the problem and how it searches. A framing is a way of modelling the task and of searching under that model: what class of problem it is treated as, what is being decided, and what the program runs at run time. It is not a list of tricks and not a choice of constants. Describe only what the code actually does; do not suggest improvements.
+
+Answer with one JSON object and nothing else. Every value is a short string of at most 300 characters:
+{
+  "problem_class": "the class of problem the program treats the task as",
+  "decision_variables": "what the program decides, and how it represents those decisions",
+  "objective_restatement": "how the objective in the task is restated or approximated in this formulation",
+  "assumptions_relaxed": "which parts of the task statement this formulation simplifies, relaxes or ignores (or 'none')",
+  "why_it_could_beat_current_best": "n/a (this is the formulation of the current program)",
+  "search_space": "what the program searches over at run time (the set of candidate solutions it can reach)",
+  "inner_search": "the optimiser or procedure it runs inside that space (or 'none: a single construction')",
+  "time_use": "how the per-call time is spent: restarts x iterations, construction then polish, a fixed loop count, or 'does not use the time'"{audit_field}
+}

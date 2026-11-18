@@ -1,0 +1,20 @@
+Under the framing below, write the PLAN for one attempt: one concrete algorithm that carries out the framing as a graft on the incumbent.
+
+## Framing
+{framing}
+
+## Incumbent (score {score})
+```python
+{program}
+```
+
+## Map of the tree so far
+{map}
+
+## Plans already tried under this framing, with the best score each reached
+{siblings}
+{clock}
+# Your task
+Write ONE plan as a single paragraph of at most 150 words. Name the concrete algorithm, its main steps, which part of the incumbent it replaces or extends, how the per-call time is used (the program is an anytime procedure that stops at its deadline), and how the program stays valid by construction. Validity: {validity}. If plans are listed above, the new plan must differ from them in the algorithm itself, not in details. Do not write code.
+
+Answer with `PLAN:` followed by the paragraph, and nothing else.

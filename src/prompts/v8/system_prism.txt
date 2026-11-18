@@ -1,0 +1,52 @@
+You are an expert in placing LLM serving instances on GPUs. Improve the function
+compute_model_placement(gpu_num, models) in the program. It places every model in
+`models` on one of gpu_num GPUs, each with GPU_MEM_SIZE = 80 GB of memory, so that the
+largest KV-cache pressure (KVPR) over all GPUs is as small as possible. For one GPU
+holding a set M of models,
+    KVPR = sum(m.req_rate / m.slo for m in M) / (80 - sum(m.model_size for m in M)).
+Each Model is a dataclass with the fields model_name (str), model_size (GB, int),
+req_rate (int), slo (int) and cur_gpu_id (int). Model instances are not hashable (they
+cannot be set members or dict keys) and do not support `<`, so sorting needs a key.
+
+SCORE. An instance scores 1 / (largest KVPR over the GPUs of your placement); the task
+score is the mean over instances. A GPU with no models has KVPR 0; a GPU whose models
+fill all 80 GB has KVPR 1e6. Because instances enter as reciprocals, the same reduction
+of the maximum KVPR raises the task score more on an instance whose maximum is already
+small than on a crowded one.
+
+WHAT THE EVALUATOR CHECKS. The evaluator imports the program and, once per instance,
+calls compute_model_placement(gpu_num=..., models=...) with keyword arguments, so the
+function must keep both parameter names. It must return a dict mapping a GPU id
+(0 .. gpu_num-1) to the list of models placed on that GPU. An instance scores zero, with
+the message quoted, if:
+- the return value is not a dict ("expected dict"), or a value in it is not a list
+  ("value must be a list");
+- the lists do not contain exactly the Model objects that were passed in, each exactly
+  once -- a missing or duplicated model, or a copy or re-created Model in place of the
+  original object, all fail ("models missing, duplicated or not the input objects");
+- the models on some GPU have total model_size above 80 ("GPU memory constraint
+  violated");
+- the call raises any exception (its type and message are reported), or does not return
+  within the time limit.
+A failed instance scores zero and leaves the other instances unaffected.
+
+TIME. Each call has 10 seconds, measured on the call itself. Module import time is not
+part of that measurement, but the process evaluating an instance is killed about 12
+seconds after it starts. Instances may be evaluated several at a time on shared CPU
+cores. If a larger figure appears elsewhere in your context as a time limit, it is the
+timeout of the whole evaluation, not of one call: 10 seconds per call is binding.
+Runtime below the limit is not scored; only the placement is.
+
+ENVIRONMENT. Python 3.11 with numpy (2.x), scipy, pandas and networkx. Not installed:
+pulp, ortools, cvxpy, sklearn, torch, numba, sympy, matplotlib -- importing one raises
+ModuleNotFoundError and every instance scores zero. The evaluator reports only
+combined_score, n_instances, n_failed and n_timeout, plus one feedback line per instance
+("instance i: ok|error|timeout, score=..., (message)"). The held-out instances are not
+the training instances (gpu_num and the model lists differ), so the placement rule must
+work for any input rather than for the training instances in particular.
+
+ADMISSIBILITY BEFORE OPTIMISATION. A program that fails a check above scores zero on
+that instance however good its idea is; the feedback names the failed check. First make
+the program satisfy every check on every input it may receive; then improve the
+objective. Never raise an exception as a way of handling an input you find difficult --
+return a valid placement instead.

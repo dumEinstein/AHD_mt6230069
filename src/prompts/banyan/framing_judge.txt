@@ -1,0 +1,10 @@
+Two framings of the same task are DUPLICATES when they treat it as the same class of problem with the same decision variables, even if worded differently, and even if they differ only in heuristics, parameter values or implementation details. They are DIFFERENT when the problem class or the decision variables differ in substance.
+
+## Candidate framing
+{candidate}
+
+## Existing framings
+{cards}
+
+Decide whether the candidate is a duplicate of any existing framing. Answer with one JSON object and nothing else:
+{"duplicate": true or false, "matches": <id number of the closest existing framing, or null>, "reason": "<one sentence naming what is the same, or what differs>"}

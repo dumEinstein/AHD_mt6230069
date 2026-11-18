@@ -1,0 +1,24 @@
+Review the candidate program below before it is evaluated. An evaluation is expensive and a program that breaks a check scores zero.
+
+{evaluator}
+## Candidate program
+```python
+{program}
+```
+
+## Problems already found by an automatic check
+{errors}
+
+# Your task
+Go through {review_basis} and compare each with the code: required names and signatures, return types and shapes, constraints that must hold on every input, forbidden imports, time limits, and anything the candidate can raise. Also check that every function, class and variable the code uses is defined in the program or imported (an undefined name scores zero){clock_check}. Then answer in one of two ways:
+
+- `VERDICT: OK` if the program satisfies all of them and no automatic problem is listed.
+- `VERDICT: FIX` followed by SEARCH/REPLACE edits that repair the candidate, in this format, copying the SEARCH lines verbatim:
+
+<<<<<<< SEARCH
+exact lines copied from the candidate
+=======
+replacement lines
+>>>>>>> REPLACE
+
+Keep the edits minimal and keep the program's approach.

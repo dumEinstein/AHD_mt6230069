@@ -1,0 +1,156 @@
+#!/bin/bash
+#PBS -N col870_run
+#PBS -P neuro.symbolic.spons
+#PBS -q standard
+#PBS -l select=1:ncpus=16:ngpus=1
+#PBS -l walltime=07:30:00
+#PBS -j oe
+#PBS -o jobs/logs/20_run.out
+#
+# One protocol-compliant run, end to end. Submit from the project root, task and
+# seed via -v:
+#
+#   qsub -v TASK=prism,SEED=0 jobs/20_run.pbs
+#   qsub -l walltime=12:00:00 -v TASK=heilbronn_triangle,SEED=1 jobs/20_run.pbs
+#
+# Four stages: the initial program's reference scores (b_t, the zero point of the
+# leaderboard normalisation in Section 5), vLLM serving the fixed generator, the
+# search itself, and validation-set selection of the program to submit.
+#
+# The wall-clock cap inside the search comes from the task (5 h for prism,
+# cloudcast, signal_processing; 10 h for the two math tasks). 7.5 h of walltime
+# covers a 5 h task plus vLLM load and selection; pass -l walltime=12:00:00 for
+# the two math tasks.
+#
+# PBS appends to -o across resubmissions, so each run also tees its own log
+# into runs/<task>/<search>_seed<seed>_<stamp>/run.log.
+set -euo pipefail
+TASK="${TASK:?set TASK=prism|cloudcast|signal_processing|heilbronn_triangle|circle_packing_rect}"
+SEED="${SEED:-0}"
+SEARCH="${SEARCH:-evox}"
+KERBEROS="${KERBEROS:-mt6230069}"
+
+echo "=== $PBS_JOBID on $(hostname)  $(date)  task=$TASK seed=$SEED search=$SEARCH"
+nvidia-smi -L || true
+cd "$PBS_O_WORKDIR"
+
+PROJ="$PBS_O_WORKDIR"
+# MODE=hacked (default) scores with the starter kit as shipped. MODE=patched uses
+# extracted/col8385_project_patched, whose cloudcast evaluator prices hops from G and
+# whose signal_processing evaluator enforces causality; the other three tasks are
+# byte-identical copies. Reference scores, search and selection all use the same kit.
+MODE="${MODE:-hacked}"
+case "$MODE" in
+  hacked)  KIT="$PROJ/extracted/col8385_project" ;;
+  patched) KIT="$PROJ/extracted/col8385_project_patched" ;;
+  # MODE=final is the configuration we submit under: the course's own fix for the
+  # cloudcast edge-cost exploit (cloudcast/sim/validate.py rejects an edge whose claimed
+  # cost or throughput differs from the real graph), and signal_processing exactly as
+  # shipped. It differs from the shipped kit in that one file and nothing else.
+  final)   KIT="$PROJ/extracted/col8385_project_final" ;;
+  *) echo "MODE must be hacked, patched or final, got $MODE"; exit 1 ;;
+esac
+echo "mode=$MODE kit=$KIT"
+SKY="$HOME/flash/col8385/skydiscover"
+VLLM_VENV="$HOME/flash/col8385/envs/vllm"
+export HF_HOME="$HOME/flash/col8385/hf_home" HF_HUB_OFFLINE=1
+export PYTHONUNBUFFERED=1 TOKENIZERS_PARALLELISM=false
+export EVAL_PARALLEL=8
+export VLLM_USE_FLASHINFER_SAMPLER=0 TORCHINDUCTOR_COMPILE_THREADS=1
+export VLLM_NO_USAGE_STATS=1 DO_NOT_TRACK=1
+# The login shell's ~/.bashrc exports the squid proxy and PBS can carry it into
+# the job. litellm/httpx would then try to reach the local vLLM through it, so
+# drop the proxy entirely -- nothing in a run needs the internet.
+unset http_proxy https_proxy ftp_proxy HTTP_PROXY HTTPS_PROXY
+
+# RUNS_ROOT keeps variants (e.g. EVAL_CAP runs) out of the stock baseline tree,
+# which analyze_runs.py discovers by newest-per-task.
+RUNS_ROOT="${RUNS_ROOT:-$PROJ/runs}"
+REF="$RUNS_ROOT/$TASK/reference_scores.json"
+mkdir -p "$RUNS_ROOT/$TASK"
+
+echo "=== [1/4] initial program reference scores b_t  $(date)"
+# Written once per task; both splits, so RESULT.md can normalise against the
+# same zero point the leaderboard uses.
+"$SKY/.venv/bin/python" - "$KIT/problems/$TASK" "$REF" <<'PY'
+import importlib.util, json, os, sys
+task_dir, out = sys.argv[1], sys.argv[2]
+sys.path.insert(0, os.path.dirname(os.path.abspath(task_dir)))
+spec = importlib.util.spec_from_file_location("task_evaluator", os.path.join(task_dir, "evaluator.py"))
+ev = importlib.util.module_from_spec(spec); spec.loader.exec_module(ev)
+init = os.path.join(task_dir, "initial_program.py")
+ref = {}
+for split in ("train", "val"):
+    try:
+        res = ev.evaluate(init, split=split)
+        ref[split] = res if isinstance(res, dict) else dict(getattr(res, "metrics", {}))
+    except Exception as e:                  # math tasks have no val split
+        ref[split] = {"error": repr(e)}
+    print(split, ref[split], flush=True)
+json.dump(ref, open(out, "w"), indent=2)
+PY
+
+echo "=== [2/4] vLLM: Qwen3-Coder-30B-A3B-Instruct, BF16, 16k  $(date)"
+# PBS places jobs with place=free, so two runs can land on the same node, each
+# with its own GPU. They then both try to serve on port 8000: one binds, the
+# other does not, and the loser's readiness check still passes because the
+# winner answers on localhost. Both searches end up on one server (halving
+# throughput) while a whole A100 sits idle. Pick a port this job can own.
+PORT=$(python3 - "$PBS_JOBID" <<'PORTPY'
+import socket, sys
+base = 8000 + int(sys.argv[1].split(".")[0]) % 100
+for p in range(base, base + 200):
+    with socket.socket() as s:
+        try:
+            s.bind(("127.0.0.1", p))
+        except OSError:
+            continue
+    print(p); break
+else:
+    print(8000)
+PORTPY
+)
+export PORT
+export API="http://localhost:${PORT}/v1"
+echo "serving on port $PORT"
+
+LOG="$PROJ/jobs/logs/vllm_${TASK}_seed${SEED}.log"
+source "$VLLM_VENV/bin/activate"
+bash "$PROJ/scripts/serve_qwen.sh" > "$LOG" 2>&1 &
+VLLM_PID=$!
+trap 'kill $VLLM_PID 2>/dev/null || true' EXIT
+for i in $(seq 1 180); do
+  curl -sf "$API/models" >/dev/null && break
+  kill -0 $VLLM_PID 2>/dev/null || { echo "vLLM died during startup"; tail -60 "$LOG"; exit 1; }
+  sleep 10
+done
+curl -sf "$API/models" || { echo "vLLM did not come up in 30 min"; tail -60 "$LOG"; exit 1; }
+echo "vLLM up after $((i*10))s"
+deactivate
+
+nvidia-smi --query-gpu=utilization.gpu,memory.used --format=csv -l 60 \
+  > "$PROJ/jobs/logs/gpu_util_${TASK}_seed${SEED}.csv" &
+GPU_PID=$!
+trap 'kill $VLLM_PID $GPU_PID 2>/dev/null || true' EXIT
+
+echo "=== [3/4] search: $SEARCH, seed $SEED  $(date)"
+PROJ="$PROJ" KIT="$KIT" API="$API" OUT="$RUNS_ROOT" bash "$PROJ/scripts/run_task.sh" "$TASK" "$SEED" "$SEARCH"
+
+echo "=== [4/4] validation selection  $(date)"
+# Protocol Section 7: search on train, select on val. The search is done, so the
+# generator is no longer needed -- free the GPU before the val sweep.
+kill $VLLM_PID $GPU_PID 2>/dev/null || true
+# Find this seed's run by name, not via the per-task .last_run file: every seed of a
+# task shares that file, so a seed started later overwrote it and stage 4 then
+# selected from another seed's (often still running) archive. The directory name
+# ends in its start time, so the lexically last one is the run just finished.
+RUN_DIR="$(ls -d "$RUNS_ROOT/$TASK/${SEARCH}_seed${SEED}_"* | sort | tail -n 1)"
+# The math tasks are a single instance scored with a 360 s limit, and their
+# train and val splits are the same instance -- ranking by val cannot reorder
+# what ranking by train already gave. Re-scoring 20 candidates there would add
+# up to 2 h to a job that has already spent 10 h searching, so keep it short.
+case $TASK in heilbronn_triangle|circle_packing_rect) TOP=3 ;; *) TOP=20 ;; esac
+"$SKY/.venv/bin/python" "$PROJ/scripts/select_by_val.py" \
+  "$RUN_DIR" "$KIT/problems/$TASK" --top "$TOP" --name "$KERBEROS"
+
+echo "=== done $(date)  run_dir=$RUN_DIR"
